@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plex Peek</title>
+<meta name="description" content="See who's watching your Plex server, right from the Mac menu bar.">
+<link rel="icon" href="icon.png">
+<style>
+  :root {
+    --bg: #f6f5f2; --fg: #1d1d1f; --muted: #6e6e73; --card: #ffffff; --line: #e3e1dc;
+    --accent: #e5a00d; --accent-ink: #1d1d1f; --green: #2f9e44; --orange: #e8590c;
+    --pop: rgba(246,246,246,.92); --pop-line: rgba(0,0,0,.1); --chip: rgba(0,0,0,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141414; --fg: #f2f2f2; --muted: #a1a1a6; --card: #1e1e1e; --line: #2c2c2c;
+      --pop: rgba(40,40,40,.92); --pop-line: rgba(255,255,255,.1); --chip: rgba(255,255,255,.08);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 16px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+
+  /* Hero */
+  header.hero { padding: 72px 0 56px; }
+  .hero-grid { display: grid; grid-template-columns: 1fr 400px; gap: 56px; align-items: center; }
+  .brand { display: flex; align-items: center; gap: 14px; margin-bottom: 28px; }
+  .brand img { width: 56px; height: 56px; }
+  .brand span { font-weight: 600; font-size: 20px; }
+  h1 { font-size: clamp(34px, 5vw, 52px); line-height: 1.08; letter-spacing: -0.02em; margin: 0 0 18px; }
+  .lede { font-size: 19px; color: var(--muted); margin: 0 0 30px; max-width: 34em; }
+  .ctas { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: 10px;
+    font-weight: 600; text-decoration: none; font-size: 15px;
+  }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); }
+  .btn.ghost { border: 1px solid var(--line); }
+  .req { font-size: 13px; color: var(--muted); margin-top: 14px; }
+
+  /* Mock menu bar + popover */
+  .stage { position: relative; }
+  .menubar {
+    height: 26px; border-radius: 8px 8px 0 0; background: var(--card); border: 1px solid var(--line);
+    display: flex; justify-content: flex-end; align-items: center; gap: 14px; padding: 0 12px;
+    font-size: 13px; color: var(--muted);
+  }
+  .menubar .item { display: flex; align-items: center; gap: 4px; color: var(--fg); font-weight: 600;
+    background: var(--chip); padding: 1px 7px; border-radius: 5px; }
+  .menubar svg { width: 15px; height: 15px; }
+  .pop {
+    margin: 10px 0 0 auto; width: 100%; max-width: 380px; border-radius: 12px; overflow: hidden;
+    background: var(--pop); border: 1px solid var(--pop-line);
+    box-shadow: 0 20px 50px rgba(0,0,0,.18), 0 2px 8px rgba(0,0,0,.08);
+    font-size: 13px; line-height: 1.35;
+  }
+  .pop-h { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--pop-line); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #34c759; flex: none; }
+  .pop-h b { display: block; font-size: 13px; }
+  .pop-h small { color: var(--muted); font-size: 11px; }
+  .pop-h .icons { margin-left: auto; color: var(--muted); letter-spacing: 8px; }
+  .row { display: flex; gap: 12px; padding: 10px 14px; position: relative; }
+  .row + .row { border-top: 1px solid var(--pop-line); margin-left: 62px; padding-left: 0; }
+  .row + .row .poster { margin-left: 0; }
+  .poster { width: 50px; height: 75px; border-radius: 4px; flex: none; }
+  .poster.sq { height: 50px; }
+  .p1 { background: linear-gradient(160deg, #3b5bdb, #1c2541); }
+  .p2 { background: linear-gradient(160deg, #e8590c, #5c1d0b); }
+  .p3 { background: linear-gradient(160deg, #2b8a3e, #0b3d1a); }
+  .meta { min-width: 0; flex: 1; }
+  .meta .t { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 22px; }
+  .meta .s { color: var(--muted); font-size: 11px; }
+  .who { display: flex; align-items: center; gap: 5px; font-size: 11px; margin: 4px 0; }
+  .av { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); }
+  .who .dev { color: var(--muted); }
+  .prog { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--muted); }
+  .bar { flex: 1; height: 4px; border-radius: 2px; background: var(--chip); overflow: hidden; }
+  .bar i { display: block; height: 100%; background: #0a84ff; }
+  .bar.paused i { background: #8e8e93; }
+  .chips { display: flex; gap: 4px; margin-top: 5px; flex-wrap: wrap; }
+  .chip { font-size: 10px; font-weight: 600; padding: 1px 5px; border-radius: 4px; background: var(--chip); color: var(--muted); }
+  .chip.dp { color: var(--green); background: color-mix(in srgb, var(--green) 14%, transparent); }
+  .chip.tc { color: var(--orange); background: color-mix(in srgb, var(--orange) 14%, transparent); }
+  .stop { position: absolute; top: 9px; right: 12px; width: 15px; height: 15px; border: 1.5px solid var(--muted);
+    border-radius: 50%; opacity: .7; }
+  .stop::after { content: ""; position: absolute; inset: 3.5px; background: var(--muted); border-radius: 1px; }
+  .pop-f { display: flex; justify-content: space-between; padding: 7px 14px; border-top: 1px solid var(--pop-line);
+    color: var(--muted); font-size: 11px; }
+
+  /* Sections */
+  section { padding: 56px 0; border-top: 1px solid var(--line); }
+  h2 { font-size: 28px; letter-spacing: -0.01em; margin: 0 0 28px; }
+  .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .f { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 22px; }
+  .f h3 { margin: 0 0 6px; font-size: 16px; }
+  .f p { margin: 0; color: var(--muted); font-size: 15px; }
+  ol.steps { padding-left: 1.2em; margin: 0; max-width: 46em; }
+  ol.steps li { margin-bottom: 12px; }
+  code, pre { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 14px; }
+  code { background: var(--chip); padding: 1px 6px; border-radius: 5px; }
+  pre { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; overflow-x: auto; margin: 10px 0 0; }
+  .note { color: var(--muted); font-size: 15px; margin-top: 18px; max-width: 46em; }
+  footer { padding: 32px 0 48px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); }
+
+  @media (max-width: 860px) {
+    header.hero { padding: 40px 0; }
+    .hero-grid { grid-template-columns: 1fr; gap: 40px; }
+    .features { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <div class="brand"><img src="icon.png" alt=""><span>Plex Peek</span></div>
+      <h1>See who's watching your Plex server, from the menu bar.</h1>
+      <p class="lede">A tiny Mac app that shows every active stream on your Plex Media Server: who's watching, what, on which device, and how hard it's working your server.</p>
+      <div class="ctas">
+        <a class="btn primary" data-repo="/releases/latest" href="#">Download for Mac</a>
+        <a class="btn ghost" data-repo="" href="#">View on GitHub</a>
+      </div>
+      <div class="req">Free · macOS 14 Sonoma or later · Apple silicon and Intel</div>
+    </div>
+
+    <div class="stage" aria-label="Example of the Plex Peek dropdown">
+      <div class="menubar">
+        <span>Wed 9:41 PM</span>
+        <span class="item">
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z"/></svg>3
+        </span>
+      </div>
+      <div class="pop">
+        <div class="pop-h">
+          <span class="dot"></span>
+          <div><b>Home Server</b><small>3 streams · Local</small></div>
+          <span class="icons">↻ ⚙︎</span>
+        </div>
+        <div class="row">
+          <div class="poster p1"></div>
+          <div class="meta">
+            <div class="t">The Long Way Home</div>
+            <div class="s">S2 · E4 — Crossing</div>
+            <div class="who"><span class="av"></span><b>alex</b><span class="dev">· Living Room TV</span></div>
+            <div class="prog">▶<span class="bar"><i style="width:62%"></i></span>18m left</div>
+            <div class="chips"><span class="chip dp">Direct Play</span><span class="chip">4K</span><span class="chip">LAN</span><span class="chip">32 Mbps</span></div>
+          </div>
+          <span class="stop"></span>
+        </div>
+        <div class="row">
+          <div class="poster p2"></div>
+          <div class="meta">
+            <div class="t">Northern Lights</div>
+            <div class="s">2024</div>
+            <div class="who"><span class="av" style="background:#748ffc"></span><b>sam</b><span class="dev">· iPhone</span></div>
+            <div class="prog">❙❙<span class="bar paused"><i style="width:24%"></i></span>1h 12m left</div>
+            <div class="chips"><span class="chip tc">Transcode</span><span class="chip">720p</span><span class="chip">WAN</span><span class="chip">4.1 Mbps</span></div>
+          </div>
+          <span class="stop"></span>
+        </div>
+        <div class="row">
+          <div class="poster sq p3"></div>
+          <div class="meta">
+            <div class="t">Slow Morning</div>
+            <div class="s">Field Recordings — Quiet Hours</div>
+            <div class="who"><span class="av" style="background:#63e6be"></span><b>jo</b><span class="dev">· Plexamp</span></div>
+            <div class="prog">▶<span class="bar"><i style="width:40%"></i></span>2:31 left</div>
+            <div class="chips"><span class="chip dp">Direct Play</span><span class="chip">LAN</span></div>
+          </div>
+          <span class="stop"></span>
+        </div>
+        <div class="pop-f"><span>⇅ 36.1 Mbps</span><span>Updated 9:41:07 PM</span></div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <h2>What it does</h2>
+    <div class="features">
+      <div class="f"><h3>Live stream count</h3><p>The menu bar icon lights up and shows how many people are watching. Nothing playing, nothing shown.</p></div>
+      <div class="f"><h3>Who, what, where</h3><p>Poster, title, user, device and progress for every movie, episode and track playing right now.</p></div>
+      <div class="f"><h3>Server load at a glance</h3><p>Direct Play or Transcode, resolution, LAN or WAN, and per-stream and total bandwidth.</p></div>
+      <div class="f"><h3>Stop a stream</h3><p>End any stream with one click and send the viewer a message explaining why.</p></div>
+      <div class="f"><h3>Sign in with Plex</h3><p>Uses Plex's own sign-in in your browser. Your token stays in the macOS Keychain.</p></div>
+      <div class="f"><h3>Stays out of the way</h3><p>No Dock icon. Auto-closes when you move away, launches at login, and handles multiple servers.</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Install</h2>
+    <ol class="steps">
+      <li>Download the latest <code>Plex Peek.zip</code> from the <a data-repo="/releases/latest" href="#">Releases page</a> and unzip it.</li>
+      <li>Drag <b>Plex Peek</b> into your Applications folder.</li>
+      <li>The first time, right-click the app and choose <b>Open</b>, then confirm. (It isn't notarized by Apple yet.)</li>
+      <li>Click the icon in the menu bar and choose <b>Sign in with Plex</b>.</li>
+    </ol>
+    <p class="note">Menu bar icon hidden behind the notch? Open Plex Peek again from Applications and the dropdown appears on its own.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Build from source</h2>
+    <p class="note" style="margin-top:0">Needs Xcode or the Swift 5.10+ toolchain.</p>
+    <pre>git clone <span data-repo-text=".git">https://github.com/&lt;you&gt;/PlexPeek.git</span>
+cd PlexPeek
+./build.sh
+open "build/Plex Peek.app"</pre>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">Plex Peek is an independent project and is not affiliated with or endorsed by Plex, Inc.</div>
+</footer>
+
+<script>
+  // Point links at this site's GitHub repo (works on <user>.github.io/<repo>/).
+  (function () {
+    var host = location.hostname, parts = location.pathname.split('/').filter(Boolean);
+    if (!/\.github\.io$/.test(host)) return;
+    var repo = 'https://github.com/' + host.split('.')[0] + '/' + (parts[0] || 'PlexPeek');
+    document.querySelectorAll('[data-repo]').forEach(function (a) { a.href = repo + a.dataset.repo; });
+    document.querySelectorAll('[data-repo-text]').forEach(function (s) { s.textContent = repo + s.dataset.repoText; });
+  })();
+</script>
+</body>
+</html>
